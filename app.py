@@ -14,6 +14,11 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 import warnings
 warnings.filterwarnings("ignore")
 
+# TensorFlow/Keras for LSTM
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
+
 st.set_page_config(page_title="Stock Forecasting Dashboard", layout="wide")
 
 # Initialize session state
@@ -91,14 +96,14 @@ elif st.session_state.page == "forecast":
     set_background(page_styles["forecast"])
     st.title("🤖 Model Forecasting")
     df = st.session_state.df
-    model_choice = st.selectbox("Select Model", ["ARIMA", "SARIMA", "Random Forest", "XGBoost"])
+    model_choice = st.selectbox("Select Model", ["ARIMA", "SARIMA", "Random Forest", "XGBoost", "LSTM"])
     days_ahead = st.slider("Days to Predict", 1, 30, 7)
 
     train_size = int(len(df) * 0.8)
     train_ts = df["Close"][:train_size]
     test_ts = df["Close"][train_size:]
 
-    # Feature engineering for ML
+    # Feature engineering for ML models
     for lag in range(1, 8):
         df[f"lag_close_{lag}"] = df["Close"].shift(lag)
     df["MA7"] = df["Close"].rolling(7).mean()
@@ -127,10 +132,29 @@ elif st.session_state.page == "forecast":
     elif model_choice == "Random Forest":
         rf = RandomForestRegressor(n_estimators=300, random_state=42).fit(X_train_scaled, y_train)
         pred = rf.predict(X_test_scaled[:days_ahead])
-    else:
+    elif model_choice == "XGBoost":
         xgb = XGBRegressor(n_estimators=500, learning_rate=0.05, max_depth=6,
                            subsample=0.8, colsample_bytree=0.8).fit(X_train_scaled, y_train)
         pred = xgb.predict(X_test_scaled[:days_ahead])
+    else:  # LSTM
+        series = df["Close"].values
+        n_input = 10
+        generator = TimeseriesGenerator(series[:train_size], series[:train_size],
+                                        length=n_input, batch_size=32)
+        lstm_model = Sequential([
+            LSTM(50, activation='relu', input_shape=(n_input, 1)),
+            Dense(1)
+        ])
+        lstm_model.compile(optimizer='adam', loss='mse')
+        lstm_model.fit(generator, epochs=20, verbose=0)
+
+        # Forecast next days
+        pred = []
+        batch = series[-n_input:].reshape((1, n_input, 1))
+        for i in range(days_ahead):
+            yhat = lstm_model.predict(batch, verbose=0)[0][0]
+            pred.append(yhat)
+            batch = np.append(batch[:,1:,:], [[[yhat]]], axis=1)
 
     future_dates = pd.date_range(df['Date'].iloc[-1], periods=days_ahead+1, freq='D')[1:]
     forecast_table = pd.DataFrame({"Date": future_dates, "Predicted Close": pred})
@@ -157,7 +181,7 @@ elif st.session_state.page == "compare":
     train_ts = df["Close"][:train_size]
     test_ts = df["Close"][train_size:]
 
-    # Feature engineering again for consistency
+    # Feature engineering again
     for lag in range(1, 8):
         df[f"lag_close_{lag}"] = df["Close"].shift(lag)
     df["MA7"] = df["Close"].rolling(7).mean()
