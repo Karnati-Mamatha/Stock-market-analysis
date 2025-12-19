@@ -1,0 +1,40 @@
+/* styles.css */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+}
+
+/* Landing page */
+.landing {
+    background-color: #f0f8ff; /* light blue */
+    height: 100vh;
+    padding: 40px;
+}
+
+/* Data Overview */
+.overview {
+    background-color: #fff0f5; /* lavender blush */
+    height: 100vh;
+    padding: 40px;
+}
+
+/* Exploratory Plots */
+.explore {
+    background-color: #f5fffa; /* mint cream */
+    height: 100vh;
+    padding: 40px;
+}
+
+/* Forecasting */
+.forecast {
+    background-color: #ffffe0; /* light yellow */
+    height: 100vh;
+    padding: 40px;
+}
+
+/* Comparison */
+.compare {
+    background-color: #f0fff0; /* honeydew */
+    height: 100vh;
+    padding: 40px;
+}
