@@ -47,7 +47,7 @@ elif st.session_state.page == "overview":
         st.session_state.df = df
         st.write(df.head())
         st.write(df.describe())
-        if st.button("Next: Exploratory Plots"):
+        if st.button("Exploratory Plots"):
             st.session_state.page = "explore"
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -66,7 +66,7 @@ elif st.session_state.page == "explore":
     ax.plot(df['Date'], df['Volume'])
     ax.set_title("Volume Traded Over Time")
     st.pyplot(fig)
-    if st.button("Next: Forecasting"):
+    if st.button("Forecasting"):
         st.session_state.page = "forecast"
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -129,7 +129,7 @@ elif st.session_state.page == "forecast":
     ax.legend()
     st.pyplot(fig)
 
-    if st.button("Next: Comparison"):
+    if st.button("Comparison"):
         st.session_state.page = "compare"
     st.markdown('</div>', unsafe_allow_html=True)
 
