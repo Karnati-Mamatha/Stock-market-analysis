@@ -1,4 +1,4 @@
-# dashboard_app.py
+# app.py
 
 import streamlit as st
 import pandas as pd
@@ -20,17 +20,23 @@ st.set_page_config(page_title="Stock Forecasting Dashboard", layout="wide")
 if "page" not in st.session_state:
     st.session_state.page = "landing"
 
-# CSS for full page backgrounds
+# Define background colors for each page
 page_styles = {
-    "landing": "background-color:#f0f8ff;",
-    "overview": "background-color:#fff0f5;",
-    "explore": "background-color:#f5fffa;",
-    "forecast": "background-color:#ffffe0;",
-    "compare": "background-color:#f0fff0;"
+    "landing": "background-color:#f0f8ff;",   # light blue
+    "overview": "background-color:#fff0f5;",  # lavender blush
+    "explore": "background-color:#f5fffa;",   # mint cream
+    "forecast": "background-color:#ffffe0;",  # light yellow
+    "compare": "background-color:#f0fff0;"    # honeydew
 }
 
 def set_background(style):
-    st.markdown(f"<style>body {{{style}}}</style>", unsafe_allow_html=True)
+    st.markdown(f"""
+        <style>
+        body {{
+            {style}
+        }}
+        </style>
+    """, unsafe_allow_html=True)
 
 # -------------------------------
 # Landing Page
@@ -38,7 +44,7 @@ def set_background(style):
 if st.session_state.page == "landing":
     set_background(page_styles["landing"])
     st.title("📊 Stock Forecasting Dashboard")
-    st.write("Welcome! Click below to begin.")
+    st.write("Welcome! This is your starting page with a full background color.")
     if st.button("Go to Data Overview"):
         st.session_state.page = "overview"
 
@@ -54,10 +60,10 @@ elif st.session_state.page == "overview":
         df['Date'] = pd.to_datetime(df['Date'], format='%d-%m-%Y')
         df.dropna(inplace=True)
         df = df.reset_index(drop=True)
+        st.session_state.df = df
         st.write(df.head())
         st.write(df.describe())
-        if st.button("Next: Exploratory Plots"):
-            st.session_state.df = df
+        if st.button("Exploratory Plots"):
             st.session_state.page = "explore"
 
 # -------------------------------
@@ -75,7 +81,7 @@ elif st.session_state.page == "explore":
     ax.plot(df['Date'], df['Volume'])
     ax.set_title("Volume Traded Over Time")
     st.pyplot(fig)
-    if st.button("Next: Forecasting"):
+    if st.button("Forecasting"):
         st.session_state.page = "forecast"
 
 # -------------------------------
@@ -92,7 +98,7 @@ elif st.session_state.page == "forecast":
     train_ts = df["Close"][:train_size]
     test_ts = df["Close"][train_size:]
 
-    # Feature engineering for ML
+    # Feature engineering
     for lag in range(1, 8):
         df[f"lag_close_{lag}"] = df["Close"].shift(lag)
     df["MA7"] = df["Close"].rolling(7).mean()
@@ -128,6 +134,7 @@ elif st.session_state.page == "forecast":
 
     future_dates = pd.date_range(df['Date'].iloc[-1], periods=days_ahead+1, freq='D')[1:]
     forecast_table = pd.DataFrame({"Date": future_dates, "Predicted Close": pred})
+    st.write("📋 Forecast Table")
     st.write(forecast_table)
 
     fig, ax = plt.subplots(figsize=(12,5))
@@ -136,7 +143,7 @@ elif st.session_state.page == "forecast":
     ax.legend()
     st.pyplot(fig)
 
-    if st.button("Next: Comparison"):
+    if st.button("Comparison"):
         st.session_state.page = "compare"
 
 # -------------------------------
@@ -149,7 +156,19 @@ elif st.session_state.page == "compare":
     train_size = int(len(df) * 0.8)
     train_ts = df["Close"][:train_size]
     test_ts = df["Close"][train_size:]
-    X = df.drop(columns=["Date","Close"])
+
+    # Feature engineering again
+    for lag in range(1, 8):
+        df[f"lag_close_{lag}"] = df["Close"].shift(lag)
+    df["MA7"] = df["Close"].rolling(7).mean()
+    df["MA30"] = df["Close"].rolling(30).mean()
+    df.dropna(inplace=True)
+
+    feature_columns = ['Open','High','Low','Volume','Adj Close',
+                       'lag_close_1','lag_close_2','lag_close_3','lag_close_4',
+                       'lag_close_5','lag_close_6','lag_close_7',
+                       'MA7','MA30']
+    X = df[feature_columns]
     y = df["Close"]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
     scaler = StandardScaler()
@@ -172,18 +191,37 @@ elif st.session_state.page == "compare":
     xgb = XGBRegressor(n_estimators=500, learning_rate=0.05, max_depth=6,
                        subsample=0.8, colsample_bytree=0.8).fit(X_train_scaled, y_train)
     xgb_pred = xgb.predict(X_test_scaled)
-    results["XGBoost"] = (mean_absolute_error(y_test, xgb_pred), np.sqrt(mean_squared_error(y_test, xgb_pred)))
+    results["XGBoost"] = (
+        mean_absolute_error(y_test, xgb_pred),
+        np.sqrt(mean_squared_error(y_test, xgb_pred))
+    )
 
-    comparison = pd.DataFrame(results, index=["MAE","RMSE"]).T
+    # Build comparison table
+    comparison = pd.DataFrame(results, index=["MAE", "RMSE"]).T
     st.write(comparison)
 
+    # Identify best model (lowest RMSE)
     best_model = comparison["RMSE"].idxmin()
-    st.success(f"🏆 Best Model: {best_model} (RMSE={comparison.loc[best_model,'RMSE']:.4f})")
+    best_rmse = comparison.loc[best_model, "RMSE"]
+    best_mae = comparison.loc[best_model, "MAE"]
+    st.success(f"🏆 Best Model: {best_model} — RMSE: {best_rmse:.4f}, MAE: {best_mae:.4f}")
 
-    fig, axes = plt.subplots(1,2, figsize=(14,5))
-    axes[0].bar(comparison.index, comparison["MAE"])
+    # Bar charts
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    axes[0].bar(comparison.index, comparison["MAE"],
+                 color=["#6baed6" if m != best_model else "#31a354" for m in comparison.index])
     axes[0].set_title("MAE Comparison")
-    axes[1].bar(comparison.index, comparison["RMSE"])
+    axes[0].set_ylabel("MAE")
+
+    axes[1].bar(comparison.index, comparison["RMSE"],
+                color=["#9ecae1" if m != best_model else "#31a354" for m in comparison.index])
     axes[1].set_title("RMSE Comparison")
+    axes[1].set_ylabel("RMSE")
+
+    plt.tight_layout()
     st.pyplot(fig)
-    st.markdown("</div>", unsafe_allow_html=True)
+
+                
+
+
