@@ -66,10 +66,7 @@ if uploaded_file:
         ax.set_title("Volume Traded Over Time")
         st.pyplot(fig)
 
-        st.subheader("Correlation Heatmap")
-        fig, ax = plt.subplots(figsize=(7,5))
-        sns.heatmap(df[['Open','High','Low','Close','Volume','Adj Close']].corr(), annot=True, cmap='coolwarm', ax=ax)
-        st.pyplot(fig)
+        
 
     # -------------------------------
     # Tab 3: Model Forecasting
@@ -134,8 +131,16 @@ if uploaded_file:
             future_X = X_test_scaled[:days_ahead]
             pred = xgb.predict(future_X)
 
-        # Visualization
+        # Forecast Table
         future_dates = pd.date_range(df['Date'].iloc[-1], periods=days_ahead+1, freq='D')[1:]
+        forecast_table = pd.DataFrame({
+            "Date": future_dates,
+            "Predicted Close": pred
+        })
+        st.write("📋 Forecast Table")
+        st.write(forecast_table)
+
+        # Visualization
         fig, ax = plt.subplots(figsize=(12,5))
         ax.plot(df['Date'], df['Close'], label="Historical Close")
         ax.plot(future_dates, pred, label=f"{model_choice} Forecast", linestyle="--", marker="o")
@@ -171,13 +176,13 @@ if uploaded_file:
         comparison = pd.DataFrame(results, index=["MAE","RMSE"]).T
         st.write(comparison)
 
+        # Identify best model (lowest RMSE)
+        best_model = comparison["RMSE"].idxmin()
+        best_rmse = comparison.loc[best_model, "RMSE"]
+        st.success(f"🏆 Best Model: {best_model} (RMSE = {best_rmse:.4f})")
+
         fig, axes = plt.subplots(1, 2, figsize=(14,5))
         axes[0].bar(comparison.index, comparison["MAE"])
         axes[0].set_title("MAE Comparison")
-        axes[1].bar(comparison.index, comparison["RMSE"])
-        axes[1].set_title("RMSE Comparison")
-        st.pyplot(fig)
-
-else:
-    st.info("Upload a dataset CSV file to start.")
+        axes[1].bar(comparison.index
 
