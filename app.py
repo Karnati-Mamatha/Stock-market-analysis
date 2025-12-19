@@ -124,9 +124,7 @@ elif st.session_state.page == "forecast":
     if st.button("Comparison"):
         st.session_state.page = "compare"
 
-# -------------------------------
-# Comparison Page
-# -------------------------------
+
 # -------------------------------
 # Comparison Page
 # -------------------------------
