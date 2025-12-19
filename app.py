@@ -220,4 +220,10 @@ elif st.session_state.page == "compare":
 
     plt.tight_layout()
     st.pyplot(fig)
+    # Navigation button
+    if st.button("Back to Landing"):
+        st.session_state.page = "landing"
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
 
