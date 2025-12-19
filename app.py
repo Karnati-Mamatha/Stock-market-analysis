@@ -174,14 +174,13 @@ elif st.session_state.page == "forecast":
 # Comparison Page
 # -------------------------------
 elif st.session_state.page == "compare":
-    set_background(page_styles["compare"])
     st.title("📊 Model Comparison")
     df = st.session_state.df
     train_size = int(len(df) * 0.8)
     train_ts = df["Close"][:train_size]
     test_ts = df["Close"][train_size:]
 
-    # Feature engineering again
+    # Feature engineering
     for lag in range(1, 8):
         df[f"lag_close_{lag}"] = df["Close"].shift(lag)
     df["MA7"] = df["Close"].rolling(7).mean()
@@ -200,34 +199,63 @@ elif st.session_state.page == "compare":
     X_test_scaled = scaler.transform(X_test)
 
     results = {}
+
+    # ARIMA
     arima_model = ARIMA(train_ts, order=(5,1,0)).fit()
     arima_pred = arima_model.forecast(len(test_ts))
-    results["ARIMA"] = (mean_absolute_error(test_ts, arima_pred), np.sqrt(mean_squared_error(test_ts, arima_pred)))
+    results["ARIMA"] = (mean_absolute_error(test_ts, arima_pred),
+                        np.sqrt(mean_squared_error(test_ts, arima_pred)))
 
+    # SARIMA
     sarima_model = SARIMAX(train_ts, order=(2,1,2), seasonal_order=(1,1,1,12)).fit()
     sarima_pred = sarima_model.forecast(len(test_ts))
-    results["SARIMA"] = (mean_absolute_error(test_ts, sarima_pred), np.sqrt(mean_squared_error(test_ts, sarima_pred)))
+    results["SARIMA"] = (mean_absolute_error(test_ts, sarima_pred),
+                         np.sqrt(mean_squared_error(test_ts, sarima_pred)))
 
+    # Random Forest
     rf = RandomForestRegressor(n_estimators=300, random_state=42).fit(X_train_scaled, y_train)
     rf_pred = rf.predict(X_test_scaled)
-    results["Random Forest"] = (mean_absolute_error(y_test, rf_pred), np.sqrt(mean_squared_error(y_test, rf_pred)))
+    results["Random Forest"] = (mean_absolute_error(y_test, rf_pred),
+                                np.sqrt(mean_squared_error(y_test, rf_pred)))
 
+    # XGBoost
     xgb = XGBRegressor(n_estimators=500, learning_rate=0.05, max_depth=6,
                        subsample=0.8, colsample_bytree=0.8).fit(X_train_scaled, y_train)
     xgb_pred = xgb.predict(X_test_scaled)
-    results["XGBoost"] = (mean_absolute_error(y_test,xgb_pred),
-        np.sqrt(mean_squared_error(y_test, xgb_pred))
-    )
+    results["XGBoost"] = (mean_absolute_error(y_test, xgb_pred),
+                          np.sqrt(mean_squared_error(y_test, xgb_pred)))
 
-    # Build comparison table
+    # LSTM
+    series = df["Close"].values
+    n_input = 10
+    generator = TimeseriesGenerator(series[:train_size], series[:train_size],
+                                    length=n_input, batch_size=32)
+    lstm_model = Sequential([
+        LSTM(50, activation='relu', input_shape=(n_input, 1)),
+        Dense(1)
+    ])
+    lstm_model.compile(optimizer='adam', loss='mse')
+    lstm_model.fit(generator, epochs=20, verbose=0)
+
+    test_pred = []
+    batch = series[train_size-n_input:train_size].reshape((1, n_input, 1))
+    for i in range(len(test_ts)):
+        yhat = lstm_model.predict(batch, verbose=0)[0][0]
+        test_pred.append(yhat)
+        batch = np.append(batch[:,1:,:], [[[yhat]]], axis=1)
+
+    results["LSTM"] = (mean_absolute_error(test_ts, test_pred),
+                       np.sqrt(mean_squared_error(test_ts, test_pred)))
+
+    # Comparison table
     comparison = pd.DataFrame(results, index=["MAE", "RMSE"]).T
+    st.write("### 📋 Model Performance Table")
     st.write(comparison)
 
-    # Identify best model (lowest RMSE)
+    # Best model
     best_model = comparison["RMSE"].idxmin()
-    best_rmse = comparison.loc[best_model, "RMSE"]
-    best_mae = comparison.loc[best_model, "MAE"]
-    st.success(f"🏆 Best Model: {best_model} — RMSE: {best_rmse:.4f}, MAE: {best_mae:.4f}")
+    st.success(f"🏆 Best Model: {best_model} — RMSE: {comparison.loc[best_model,'RMSE']:.4f}, "
+               f"MAE: {comparison.loc[best_model,'MAE']:.4f}")
 
     # Bar charts
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
@@ -244,10 +272,11 @@ elif st.session_state.page == "compare":
 
     plt.tight_layout()
     st.pyplot(fig)
-    # Navigation button
+
+    # Navigation
+    if st.button("Back to Forecasting"):
+        st.session_state.page = "forecast"
     if st.button("Back to Landing"):
         st.session_state.page = "landing"
-
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
